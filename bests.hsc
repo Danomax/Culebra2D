@@ -1,0 +1,10 @@
+0,danomax,2100
+1,danomax,700
+2,danomax,700
+3,danomax,400
+4,danomax,300
+5,danomax,300
+6,danomax,300
+7,danomax,200
+8,danomax,100
+9,danomax,100

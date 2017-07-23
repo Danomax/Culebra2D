@@ -1,13 +1,16 @@
 from kivy.app import App
 from kivy.core.window import Window
 from kivy.uix.widget import Widget
+from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.label import Label
+from kivy.uix.button import Button
 from kivy.uix.image import Image
 from kivy.graphics.vertex_instructions import Ellipse, Rectangle
 from kivy.graphics import Color
 from kivy.clock import Clock
 
 import random 
+import os
 
 
 def direction(pos_ini,pos_end):
@@ -59,57 +62,56 @@ class Food(Ellipse):
   def update(self,pose):
     super(Food,self).update(pose)
 '''
-class Score(Label): 
+class Score(Button): 
   def __init__(self,**kwargs):
     super(Score,self).__init__(**kwargs)
-  
+    
+
   def update(self,*ignore):
     self.text = self.parent.textscore
     self.x = 0
+
+  def callback(instance):
+    self.parent.game.pause()
     
 class Game(Widget):
-  def __init__(self):
-    super(Game, self).__init__()
+  def __init__(self, **kwargs):
+    super(Game, self).__init__(**kwargs)
+    if os.name == 'nt':
+      self.size = (600,600)
+    self.user = 'danomax'
     self.score = 0
     self.direction = 0
+    self.grid = (16,12)
+    self.textscore = text = 'score: '+str(self.score)
+    self.score_label = Score(text=self.textscore, halign='center')
+    self.score_label.bind(on_press=self.score_label.callback)
+    self.background = Background(source='background.png')
+    self.resize()
     self._keyboard = Window.request_keyboard(self._keyboard_closed, self)
     self._keyboard.bind(on_key_down=self._on_keyboard_down)
-    self.size = (640,600)
-    self.mylayout = 10
-    height_unit = int(self.height / self.mylayout)
-    self.textscore = text = 'score: '+str(self.score)
-    self.score_label = Score(text=self.textscore)
     self.add_widget(self.score_label)
-    self.score_label.height = 2*height_unit
-    #self.score_label.width = self.width
-    self.score_label.y = 8 * height_unit
-    self.score_label.x = self.x
-    self.background = Background(source='background.png')
     self.add_widget(self.background)
-    self.background.height = 8*height_unit
-    self.background.width = self.width
-    self.background.y = self.y
-    self.number=0
     self.snake = []         #objetos de la culebra
     self.snake_size = 3
-    self.grid = (16,12)
     self.grid_snake = []    #mantiene una matriz que es true en las celdas ocupadas por la culebra
     self.snake_poses = []   #lista de posiciones de la culebra
     for i in range(self.grid[0]):
       self.grid_snake.append([])
       for j in range(self.grid[1]):
         self.grid_snake[i].append(False)
-    color_head = [0,0,1]
-    color_food = [1.0,0.2,0.2]
-    (self.width_grid,self.height_grid) = (int(self.background.width/self.grid[0]),int(self.background.height/self.grid[1]))
-    mysize = (self.width_grid,self.height_grid)
+    self.Draw()
+    Clock.schedule_interval(self.update, 1.0/3.141592653)     
+
+  def Draw(self):
     with self.canvas:
-      Color(*color_head)
+      color_snake = [random.random(),random.random(),1]
+      Color(*color_snake)
       (x,y) = (int(self.grid[0]/2),int(self.grid[1]/2))
       self.snake_poses.append([x,y])
       self.grid_snake[x][y] = True
       position = self.get_position(self.snake_poses[0])
-      self.snake.append(Ball(pos=position,size=mysize))
+      self.snake.append(Ball(pos=position,size=self.ballsize))
       for i in range(1,self.snake_size):
         color_snake = [random.random(),random.random(),1]
         Color(*color_snake)
@@ -117,15 +119,14 @@ class Game(Widget):
         self.snake_poses.append([x,y])
         self.grid_snake[x][y] = True
         position = self.get_position(self.snake_poses[-1])
-        self.snake.append(Ball(pos=position,size=mysize))
+        self.snake.append(Ball(pos=position,size=self.ballsize))
       self.snake_to_move = self.snake_size-1
+      color_food = [1.0,0.2,0.2]
       Color(*color_food)
-      #self.food_pos = (random.randint(1,self.grid[0]),random.randint(1,self.grid[1]))
+      self.food_pos = (random.randint(1,self.grid[0]),random.randint(1,self.grid[1]))
       self.food_pos = self.new_food_pos()
       position = self.get_position(self.food_pos)
-      self.food = Ball(pos=position,size=mysize)
-
-      Clock.schedule_interval(self.update, 1.0/3.141592653)     
+      self.food = Ball(pos=position,size=self.ballsize)
 
   def _keyboard_closed(self):
     self._keyboard.unbind(on_key_down=self._on_keyboard_down)
@@ -151,6 +152,16 @@ class Game(Widget):
     direc = direction(self.pos_ini,self.pos_end)
     if self.direction != -direc:
       self.direction = direc
+
+  def resize(self):
+    self.score_label.size = self.width, 0.1*self.height
+    self.score_label.y = self.height - self.score_label.height
+    self.background.size = self.width, 0.9 * self.height
+    self.background.y = 0 
+    (self.width_grid,self.height_grid) = (int(self.background.width/self.grid[0]),int(self.background.height/self.grid[1]))
+    self.ballsize = (self.width_grid,self.height_grid)
+    self.update()
+
 
   def get_position(self, pose):
     '''
@@ -180,6 +191,29 @@ class Game(Widget):
     return (-1,-1)
 
   def game_over(self):
+    filename = 'bests.hsc'
+    max_scores = 10
+    with open(filename) as f:
+      seq = f.readlines()
+    i=0
+    z=''
+    Recorded = False
+    if seq != []:
+      for s in seq:
+        data = s.strip().split(',')
+        if self.score > int(data[2]) and not Recorded:
+          z += str(i)+','+self.user+',' + str(self.score) + '\n'
+          i+=1
+          Recorded = True  
+        if i<max_scores:
+          z += str(i) + ',' + data[1] + ',' + data[2] + '\n'
+          i +=1
+    if i<max_scores:
+      if not Recorded:
+        z += str(i)+','+self.user+',' + str(self.score) + '\n'
+ 
+    with open(filename,'w') as f:
+      f.write(z)
     self.clear_widgets()
     Clock.unschedule(self.update)
     self.__init__()
@@ -264,16 +298,23 @@ class Game(Widget):
           self.snake_to_move = self.snake_size-1
         else:
           self.snake_to_move -= 1
-      self.textscore = "score: " + str(self.score) + "head pose: (" + str(self.snake_poses[0][0]) + "),(" + str(self.snake_poses[0][1])+")"
+      self.textscore = "score: " + str(self.score)
       self.score_label.x = self.x
       self.score_label.update()
 
+  def pause(self):
+    if Clock.istriggered(self.update):
+      Clock.unschedule(self.update)
 
 class Culebra2DApp(App):
   def build(self):
     game = Game()
-    Window.size = game.size
+    if os.name == 'nt':
+      Window.size = game.size
     return game
+
+  def on_resize(self):
+    game.resize()
 
 if __name__ == "__main__":
   Culebra2DApp().run()
