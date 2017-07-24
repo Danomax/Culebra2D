@@ -69,23 +69,29 @@ class Score(Button):
 
   def update(self,*ignore):
     self.text = self.parent.textscore
-    self.x = 0
+    #self.x = 0
 
-  def callback(instance):
+  def _on_press(self,event):
+    print('callback called')
+    self.text = 'touched!' + self.parent.textscore 
     self.parent.game.pause()
     
 class Game(Widget):
   def __init__(self, **kwargs):
     super(Game, self).__init__(**kwargs)
+    self.pos_ini = (0,0)
     if os.name == 'nt':
       self.size = (600,600)
+    elif os.name == 'posix':
+      self.size = Window.size
     self.user = 'danomax'
     self.score = 0
     self.direction = 0
+    self.velocity = 3
     self.grid = (16,12)
     self.textscore = text = 'score: '+str(self.score)
     self.score_label = Score(text=self.textscore, halign='center')
-    self.score_label.bind(on_press=self.score_label.callback)
+    self.score_label.bind(on_press=self.score_label._on_press)
     self.background = Background(source='background.png')
     self.resize()
     self._keyboard = Window.request_keyboard(self._keyboard_closed, self)
@@ -101,7 +107,7 @@ class Game(Widget):
       for j in range(self.grid[1]):
         self.grid_snake[i].append(False)
     self.Draw()
-    Clock.schedule_interval(self.update, 1.0/3.141592653)     
+    Clock.schedule_interval(self.update, 1.0/self.velocity)     
 
   def Draw(self):
     with self.canvas:
@@ -144,14 +150,15 @@ class Game(Widget):
     return True
 
   def on_touch_down(self, touch): 
-    self.pos_ini =(touch.x, touch.y)
-    #touch.ud['dir'] = pos_ini 
+    if touch.y < self.background.height:
+      self.pos_ini =(touch.x, touch.y)
   
   def on_touch_up(self, touch): 
-    self.pos_end = (touch.x, touch.y)
-    direc = direction(self.pos_ini,self.pos_end)
-    if self.direction != -direc:
-      self.direction = direc
+    if touch.y < self.background.height:
+      self.pos_end = (touch.x, touch.y)
+      direc = direction(self.pos_ini,self.pos_end)
+      if self.direction != -direc:
+        self.direction = direc
 
   def resize(self):
     self.score_label.size = self.width, 0.1*self.height
@@ -305,6 +312,8 @@ class Game(Widget):
   def pause(self):
     if Clock.istriggered(self.update):
       Clock.unschedule(self.update)
+    else:
+      Clock.schedule_interval(self.update,1.0/self.velocity)
 
 class Culebra2DApp(App):
   def build(self):
