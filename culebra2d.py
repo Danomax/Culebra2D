@@ -12,6 +12,7 @@ from kivy.clock import Clock
 import random 
 import os
 
+GAME_SPEED = 4
 
 def direction(pos_ini,pos_end):
   '''
@@ -66,7 +67,6 @@ class Score(Button):
   def __init__(self,**kwargs):
     super(Score,self).__init__(**kwargs)
     
-
   def update(self,*ignore):
     self.text = self.parent.textscore
     #self.x = 0
@@ -87,21 +87,25 @@ class Game(Widget):
     self.user = 'danomax'
     self.score = 0
     self.direction = 0
-    self.velocity = 3
+    self.velocity = GAME_SPEED
+    self.paused = True
     self.grid = (16,12)
     self.textscore = text = 'score: '+str(self.score)
     self.score_label = Score(text=self.textscore, halign='center')
-    self.score_label.bind(on_press=self.score_label._on_press)
+    #self.score_label.bind(on_press=self.score_label._on_press)
+    self.score_label.bind(on_press=self.callback)
     self.background = Background(source='background.png')
     self.resize()
-    self._keyboard = Window.request_keyboard(self._keyboard_closed, self)
-    self._keyboard.bind(on_key_down=self._on_keyboard_down)
+    if os.name == 'nt':
+      self._keyboard = Window.request_keyboard(self._keyboard_closed, self)
+      self._keyboard.bind(on_key_down=self._on_keyboard_down)
     self.add_widget(self.score_label)
     self.add_widget(self.background)
     self.snake = []         #objetos de la culebra
     self.snake_size = 3
     self.grid_snake = []    #mantiene una matriz que es true en las celdas ocupadas por la culebra
     self.snake_poses = []   #lista de posiciones de la culebra
+    self.snake_mask_colors = [0.0, 1.0, 0.0]  #Mascara de colores de la culebra
     for i in range(self.grid[0]):
       self.grid_snake.append([])
       for j in range(self.grid[1]):
@@ -111,7 +115,8 @@ class Game(Widget):
 
   def Draw(self):
     with self.canvas:
-      color_snake = [random.random(),random.random(),1]
+      color_random = [random.random(),random.random(),random.random()]
+      color_snake = [x*y for x,y in zip(color_random,self.snake_mask_colors)]+[1]
       Color(*color_snake)
       (x,y) = (int(self.grid[0]/2),int(self.grid[1]/2))
       self.snake_poses.append([x,y])
@@ -119,7 +124,8 @@ class Game(Widget):
       position = self.get_position(self.snake_poses[0])
       self.snake.append(Ball(pos=position,size=self.ballsize))
       for i in range(1,self.snake_size):
-        color_snake = [random.random(),random.random(),1]
+        color_random = [random.random(),random.random(),random.random()]
+        color_snake = [x*y for x,y in zip(color_random,self.snake_mask_colors)]+[1]
         Color(*color_snake)
         (x,y) = (int(self.grid[0]/2-i),int(self.grid[1]/2))
         self.snake_poses.append([x,y])
@@ -147,8 +153,11 @@ class Game(Widget):
       self.direction = 2
     elif keycode[1] == 'down' and self.direction != 2:
       self.direction = -2
+    if self.paused: self.pause()
+    elif keycode[1] == 'p':
+      self.pause()
     return True
-
+  '''
   def on_touch_down(self, touch): 
     if touch.y < self.background.height:
       self.pos_ini =(touch.x, touch.y)
@@ -159,6 +168,11 @@ class Game(Widget):
       direc = direction(self.pos_ini,self.pos_end)
       if self.direction != -direc:
         self.direction = direc
+  '''
+  def callback(self,event):
+    print('callback called')
+    self.text = 'touched!' + self.textscore 
+    self.pause()
 
   def resize(self):
     self.score_label.size = self.width, 0.1*self.height
@@ -287,7 +301,8 @@ class Game(Widget):
         self.snake_poses.append(old_pose)
         self.snake_size += 1
         with self.canvas:
-          color_snake = [random.random(),random.random(),1]
+          color_random = [random.random(),random.random(),random.random()]
+          color_snake = [x*y for x,y in zip(color_random,self.snake_mask_colors)]+[1]
           Color(*color_snake)
           position = self.get_position(old_pose)
           mysize = (self.width_grid,self.height_grid)
@@ -310,10 +325,12 @@ class Game(Widget):
       self.score_label.update()
 
   def pause(self):
-    if Clock.istriggered(self.update):
+    if not self.paused:
       Clock.unschedule(self.update)
+      self.paused = True
     else:
-      Clock.schedule_interval(self.update,1.0/self.velocity)
+      Clock.schedule_interval(self.update,1/self.velocity)
+      self.paused = False
 
 class Culebra2DApp(App):
   def build(self):
